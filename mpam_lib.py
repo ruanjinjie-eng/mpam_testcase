@@ -122,14 +122,17 @@ def get_cpu_id():
 
 def start_benchmark(cpuno, numa_id, name, resource):
     if name == "bw_mem":
+        # 减少工作集与迭代次数便于在FPGA上快速跑完
         if resource == "L2":
-            size = "4096M"
-            times = 100
-            command = "taskset -c %d bw_mem -P 1 -N %d %s rd" % (cpuno, times, size)
+            size = "256M"
+            times = 10
+            procs = 1
+            command = "taskset -c %d bw_mem -P %d -N %d %s rd" % (cpuno, procs, times, size)
         else:
-            size = "512M"
+            size = "64M"
             times = 1
-            command = "numactl -N %d bw_mem -P 16 -N %d %s rd" % (numa_id, times, size)
+            procs = 8
+            command = "numactl -N %d bw_mem -P %d -N %d %s rd" % (numa_id, procs, times, size)
         print("%s" % command)
 
     elif name == "lat_mem_rd":
