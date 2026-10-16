@@ -1,0 +1,55 @@
+#!/bin/sh
+# Guest init for the MPAM python test suite (8c/2cluster/1node VM).
+# Boots, mounts resctrl, runs the 22-item suite, then poweroff.
+/bin/busybox --install -s /bin 2>/dev/null
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root
+export TERM=linux
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+mount -t tmpfs tmp /tmp
+
+echo "=== MARKER:USERSPACE-UP ==="
+echo "kernel: $(uname -r)"
+echo "=== mount resctrl ==="
+mkdir -p /sys/fs/resctrl
+mount -t resctrl resctrl /sys/fs/resctrl -o l2,debug && echo "MOUNT-OK l2,debug" \
+  || { mount -t resctrl resctrl /sys/fs/resctrl -o debug && echo "MOUNT-OK debug"; } \
+  || echo "MOUNT-FAIL"
+
+echo "=== resource probe ==="
+echo "info dirs: $(ls /sys/fs/resctrl/info/ 2>/dev/null | tr '\n' ' ')"
+echo "L3_MON: $(cat /sys/fs/resctrl/info/L3_MON/mon_features 2>/dev/null | tr '\n' ' ')"
+echo "L2_MON: $(cat /sys/fs/resctrl/info/L2_MON/mon_features 2>/dev/null | tr '\n' ' ')"
+echo "MB_MON: $(cat /sys/fs/resctrl/info/MB_MON/mon_features 2>/dev/null | tr '\n' ' ')"
+echo "schemata:"; cat /sys/fs/resctrl/schemata 2>/dev/null | sed 's/^/  /'
+echo "mon_data (root):"; ls /sys/fs/resctrl/mon_data/ 2>/dev/null | sed 's/^/  /'
+
+echo ""
+echo "############################"
+echo "# MPAM TEST SUITE (22 items)"
+echo "############################"
+cd /mpam
+python3 - <<'PYEOF' 2>&1
+import subprocess
+tests = [
+    "L3 cmt","L3 cat","L3 cmt cdp","L3 cat cdp",
+    "L3 max","L3 min","L3 prio",
+    "MB mbm","MB mba","MB min","MB prio","MB hdl",
+    "L2 mbm","L2 cmt","L2 cat","L2 mbm cdp","L2 cmt cdp","L2 cat cdp",
+    "limit","MB precision","L3 precision","task",
+]
+n = len(tests)
+for i, t in enumerate(tests, 1):
+    print(f"\nExecuting [{i}/{n}]: python3 mpam_main.py {t}", flush=True)
+    r = subprocess.run(["python3","mpam_main.py"]+t.split())
+    print(f"{'PASS' if r.returncode==0 else 'FAIL'} [{i}/{n}]: python3 mpam_main.py {t}", flush=True)
+PYEOF
+echo "############################"
+echo "# SUITE DONE, exit=$?"
+echo "############################"
+sync
+sleep 2
+poweroff -f
