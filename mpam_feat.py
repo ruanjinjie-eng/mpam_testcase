@@ -129,6 +129,10 @@ def run_feat_test(feat, resource, p1_cnt, p2_cnt, benchmark):
 def run_prio_test(resource):
     print("run_prio_test %s begin:" % resource)
 
+    if resource == "MB" and not mpam_lib.mb_exported():
+        print("Skip: MB resource not exported on this platform")
+        return 0
+
     feat = ("%sPRI" % resource)
     if resource == "MB":
         benchmark = "bw_mem"
@@ -141,6 +145,10 @@ def run_prio_test(resource):
 
 def run_min_test(resource):
     print("run_min_test %s begin:" % resource)
+
+    if resource == "MB" and not mpam_lib.mb_exported():
+        print("Skip: MB resource not exported on this platform")
+        return 0
 
     feat = ("%sMIN" % resource)
     if resource == "MB":

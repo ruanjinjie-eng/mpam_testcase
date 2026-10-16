@@ -32,7 +32,13 @@ def run_hdl_test(resource):
     benchmark = "bw_mem"
     percent = 10
 
-    if mpam_lib.check_resource_mon(resource, monitor_list[resource]):
+    # The mainline driver serves mbm_total_bytes under L3_MON, not as
+    # a separate MB monitor resource.
+    if not mpam_lib.mb_exported():
+        print("Skip: MB resource not exported on this platform")
+        return 0
+
+    if mpam_lib.check_resource_mon("L3", monitor_list["MB"]):
         return -1
 
     if mpam_lib.mkdir_ctrl_group(ctrl_grp, ""):

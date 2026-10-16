@@ -39,6 +39,86 @@ def check_resource_mon(resource, monitor):
 
     return 0
 
+def mb_exported():
+    """Whether the MB (memory bandwidth) resource is present at all.
+
+    The mainline arm_mpam driver only exports MB when a memory-side MSC
+    matching the L3 traffic topology exists (single node, single L3, no L4
+    or memory-side cache).  A platform whose MPAM table describes cache
+    MSCs only - like the 8-core FPGA prototype - has no MB controls, and
+    the whole MB test family is not applicable there.  Report a skip
+    instead of a failure for such hardware.
+    """
+    return os.path.exists(resctrl_path + "/info/MB")
+
+def get_resource_dom(resource):
+    """First domain id of <resource>: from the root schemata.
+
+    The mainline driver numbers the MB-family domains after the L3
+    cache id instead of the NUMA node id, so take the real id from
+    the schemata instead of hardcoding node 0.  Mainline also aligns
+    the resource names with leading spaces - strip before matching.
+    """
+    try:
+        with open(resctrl_path + "/schemata", 'r') as f:
+            for line in f:
+                if line.strip().startswith(resource + ":"):
+                    return int(line.strip().split(":")[1].split("=")[0])
+    except (OSError, ValueError):
+        pass
+
+    return -1
+
+def read_schemata_val(ctrl_grp, resource, dom):
+    """Numeric value of <resource>:<dom> in a group's schemata.
+
+    Handles the multi-domain ';' form; returns -1 when the
+    resource/domain is not present.
+    """
+    path = ("%s/%s/schemata" % (resctrl_path, ctrl_grp))
+
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                if not line.strip().startswith(resource + ":"):
+                    continue
+                for seg in line.strip().split(":", 1)[1].split(";"):
+                    fields = seg.split("=")
+                    if fields[0] == str(dom):
+                        return int(fields[1])
+    except (OSError, ValueError, IndexError):
+        pass
+
+    return -1
+
+def find_mon_dom(ctrl_group, resource):
+    """Domain id of the first mon_<resource>_* dir under mon_data.
+
+    The mainline driver names mon_L3_* after the monitor component
+    id, which may differ from the sysfs cache id, so enumerate the
+    directory instead of computing the id.
+    """
+    mon_dir = ("%s/%s/mon_data" % (resctrl_path, ctrl_group))
+    prefix = ("mon_%s_" % resource)
+
+    try:
+        for d in os.listdir(mon_dir):
+            if d.startswith(prefix) and d[len(prefix):].isdigit():
+                return int(d[len(prefix):])
+    except OSError:
+        pass
+
+    return -1
+
+def _mkdir_retry(path):
+    # Mainline returns -EBUSY from group creation while the deleted
+    # group's RMIDs are still in limbo - a "retry" signal.  One retry
+    # after a second absorbs it.
+    if not os.system("mkdir %s" % path):
+        return 0
+    time.sleep(1)
+    return -1 if os.system("mkdir %s" % path) else 0
+
 def mkdir_ctrl_group(ctrl_group, mon_group):
     ctrl_group_p = resctrl_path + "/" + ctrl_group
     mon_group_p = ctrl_group_p + "/mon_groups/" + mon_group
@@ -49,18 +129,18 @@ def mkdir_ctrl_group(ctrl_group, mon_group):
             os.system("rmdir %s" % ctrl_group_p)
 
             print("create %s" % ctrl_group_p)
-            if os.system("mkdir %s" % ctrl_group_p):
+            if _mkdir_retry(ctrl_group_p):
                 return -1
     else:
         print("create %s" % ctrl_group_p)
-        if os.system("mkdir %s" % ctrl_group_p):
+        if _mkdir_retry(ctrl_group_p):
             return -1
 
     if not mon_group:
         return 0
 
     print("create %s" % mon_group_p)
-    if os.system("mkdir %s" % mon_group_p):
+    if _mkdir_retry(mon_group_p):
         return -1
 
     return 0
@@ -229,9 +309,21 @@ def read_resource_monitor_val(ctrl_group, resource, id, monitor):
 
     return int(val)
 
+def monitor_val_path(ctrl_group, resource, dom_id, monitor):
+    return ("%s/%s/mon_data/mon_%s_%02d/%s" %
+            (resctrl_path, ctrl_group, resource, dom_id, monitor))
+
 def read_monitor_val(cpuno, resource, ctrl_group, monitor, dom_id=-1):
     if resource[0] == 'L':
         dom_id = find_cpu_to_cacheid(cpuno, resource)
+
+    # Prefer the per-cpu domain dir named by the sysfs cache id; the
+    # mainline driver names mon_L3_* after the monitor component id,
+    # so fall back to the first mon_<resource>_* dir that exists.
+    if not os.path.exists(monitor_val_path(ctrl_group, resource, dom_id, monitor)):
+        glob_dom = find_mon_dom(ctrl_group, resource)
+        if glob_dom >= 0:
+            dom_id = glob_dom
 
     val = read_resource_monitor_val(ctrl_group, resource, dom_id, monitor)
     if not val:
@@ -245,6 +337,11 @@ def write_schmata(ctrl_grp, resource, cpuno, cnt, dom_id=-1):
     path = ("%s/%s/schemata" % (resctrl_path, ctrl_grp))
 
     if "MB" in resource:
+        # The MB-family domain id is the L3 cache id on mainline,
+        # not the NUMA node id - take it from the schemata.
+        res_dom = get_resource_dom(resource)
+        if res_dom >= 0:
+            dom_id = res_dom
         cnt = ("%s:%d=%d" % (resource, dom_id, cnt))
 
     elif "PRIO" in resource or "MIN" in resource or "MAX" in resource:
@@ -256,7 +353,9 @@ def write_schmata(ctrl_grp, resource, cpuno, cnt, dom_id=-1):
         cnt = ("%s:%d=%x" % (resource, dom_id, cnt))
 
     print(path, cnt)
-    return os.system("echo %s > %s" % (cnt, path))
+
+    # os.system() returns a positive wait status on failure, never -1
+    return 0 if os.system("echo %s > %s" % (cnt, path)) == 0 else -1
 
 def check_bandwidth_values(values, resource):
     for v in values:
@@ -314,6 +413,12 @@ def mount_resctrl_fs(mount_option):
         umount_resctrl()
 
     if mount_option:
+        # The mainline -o cdp only splits L3; the L2 CDP tests need
+        # the extra cdpl2 option as well.
+        if "cdp" in mount_option and "l2" in mount_option and \
+           "cdpl2" not in mount_option:
+            mount_option += ",cdpl2"
+
         ret = os.system("mount -t resctrl resctrl %s -o %s,debug" %
                         (resctrl_path, mount_option))
     else:

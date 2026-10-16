@@ -31,7 +31,13 @@ def run_mba_test(resource):
     numa_id = 0
     benchmark = "bw_mem"
 
-    if mpam_lib.check_resource_mon(resource, monitor_list[resource]):
+    # The mainline driver serves mbm_total_bytes under L3_MON/mon_L3_*.
+    mon_res = "L3"
+    if not mpam_lib.mb_exported():
+        print("Skip: MB resource not exported on this platform")
+        return 0
+
+    if mpam_lib.check_resource_mon(mon_res, monitor_list["MB"]):
         return -1
 
     if mpam_lib.mkdir_ctrl_group(ctrl_grp, ""):
@@ -55,7 +61,7 @@ def run_mba_test(resource):
             return -1
 
         time.sleep(3)
-        mb_res.append(mpam_lib.read_monitor_val(cpuno, resource, ctrl_grp, monitor_list[resource], numa_id))
+        mb_res.append(mpam_lib.read_monitor_val(cpuno, mon_res, ctrl_grp, monitor_list["MB"], numa_id))
 
         bw = mpam_lib.end_benchmark(proc, benchmark)
 

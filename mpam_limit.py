@@ -21,13 +21,22 @@ import mpam_lib
 resctrl_path = "/sys/fs/resctrl"
 
 def get_closid_number():
-    path = ("%s/info/MB/num_closids" % (resctrl_path))
+    # The mainline driver does not export info/MB when the topology
+    # does not match the L3; fall back to the L3 view of the count.
+    for res in ("MB", "L3"):
+        path = ("%s/info/%s/num_closids" % (resctrl_path, res))
 
-    fp = open(path)
-    size = fp.read()
-    fp.close()
+        if not os.path.exists(path):
+            continue
 
-    return int(size)
+        fp = open(path)
+        size = fp.read()
+        fp.close()
+
+        return int(size)
+
+    print("Fail: no num_closids found (info/MB, info/L3)")
+    return -1
 
 def get_pmg_number():
     return 4
@@ -59,10 +68,24 @@ def read_threshold(res):
 
 def write_threshold(res, size):
     path = ("%s/info/%s_MON/max_threshold_occupancy" % (resctrl_path, res))
-    size_KB = mpam_lib.get_cache_size(0, res)
-    size = int(size_KB[:-1]) << 10
 
-    return os.system("echo %d > %s" % (size, path))
+    if not os.system("echo %d > %s" % (size, path)):
+        return 0
+
+    # The mainline driver caps the value at the smallest monitored
+    # cache instance and reports the cap in last_cmd_status - parse
+    # it and retry with that value.
+    try:
+        import re
+
+        with open(resctrl_path + "/info/last_cmd_status") as f:
+            status = f.read()
+
+        limit = int(re.search(r"of (\d+) bytes", status).group(1))
+    except (OSError, AttributeError, ValueError):
+        return -1
+
+    return os.system("echo %d > %s" % (limit, path))
 
 def disable_threshold(res):
     size_KB = mpam_lib.get_cache_size(0, res)
