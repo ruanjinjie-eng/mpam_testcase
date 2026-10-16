@@ -32,9 +32,17 @@ def run_mbm_test(resource):
     ctrl_grp = "p1"
     benchmark = "bw_mem"
 
-    res = mpam_lib.check_resource_mon(resource, monitor_list[resource])
-    if res < 0:
-        return -1
+    # OLK exposes the bandwidth monitor as MB_MON/mon_MB_*; mainline
+    # serves mbm_total_bytes under L3_MON/mon_L3_*.
+    mon_res = resource
+    if resource == "MB":
+        mon_res = mpam_lib.probe_bw_monitor()
+        if not mon_res:
+            print("Fail: no bandwidth monitor (MB_MON / L3_MON mbm_total_bytes)")
+            return -1
+    else:
+        if mpam_lib.check_resource_mon(resource, monitor_list[resource]):
+            return -1
 
     if mpam_lib.mkdir_ctrl_group(ctrl_grp, ""):
         return -1
@@ -49,11 +57,11 @@ def run_mbm_test(resource):
     res = []
     time.sleep(2)
     for i in range(0, 5):
-        res.append(mpam_lib.read_monitor_val(cpuno, resource, ctrl_grp, monitor_list[resource], numa_id))
+        res.append(mpam_lib.read_monitor_val(cpuno, mon_res, ctrl_grp, monitor_list[resource], numa_id))
 
     mpam_lib.end_benchmark(proc, benchmark)
 
-    if mpam_lib.check_bandwidth_values(res, resource) < 0:
+    if mpam_lib.check_bandwidth_values(res, mon_res) < 0:
         print("Fail: Check run_mbm_test %s" % resource)
         return -1
 

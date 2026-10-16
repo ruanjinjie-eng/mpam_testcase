@@ -16,22 +16,32 @@
 # #############################################
 
 import os
+import mpam_lib
 from mpam_lib import mkdir_ctrl_group
 
 def run_precision_test():
     print("run_precision_test MB begin:")
 
+    # The MB domain id is NUMA-node based on OLK, L3-cache-id based on
+    # mainline - take it from the schemata instead of hardcoding 0.
+    dom = mpam_lib.get_resource_dom("MB")
+    if dom < 0:
+        print("Fail: MB resource not present in schemata")
+        return -1
+
     mkdir_ctrl_group("p1", "")
     for i in range(1, 101):
-        print("echo MB:0=%d" % i)
-        ret = os.system("echo MB:0=%d > /sys/fs/resctrl/p1/schemata" % i)
+        print("echo MB:%d=%d" % (dom, i))
+        ret = os.system("echo MB:%d=%d > /sys/fs/resctrl/p1/schemata" % (dom, i))
         if ret:
             print("set %d fail" % i)
             return -1
 
-        ret = os.system("cat /sys/fs/resctrl/p1/schemata | grep 'MB:0=0*%03d'" % i)
-        if ret:
-            print("set %d fail" % i)
+        # OLK zero-pads the value, mainline prints it bare - compare
+        # numerically instead of grep-ing a fixed format.
+        val = mpam_lib.read_schemata_val("p1", "MB", dom)
+        if val != i:
+            print("set %d fail (readback %d)" % (i, val))
             return -1
 
     print("Pass: Check run_precision_test MB")

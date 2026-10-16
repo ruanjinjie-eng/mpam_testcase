@@ -68,6 +68,17 @@ def run_feat_test(feat, resource, p1_cnt, p2_cnt, benchmark):
     if mpam_lib.write_schmata("", feat, cpuno1, p1_cnt, numa_id) < 0:
         return -1
 
+    if benchmark == "bw_mem" and not mpam_lib.on_hw():
+        # QEMU's MSC model never enforces MIN/PRI on real traffic;
+        # validate the schemata interface only on such platforms.
+        for grp, cnt in ((ctrl_grp_1, p1_cnt), (ctrl_grp_2, p2_cnt)):
+            if mpam_lib.mkdir_ctrl_group(grp, ""):
+                return -1
+            if mpam_lib.write_schmata(grp, feat, cpuno1, cnt, numa_id) < 0:
+                return -1
+        print("Skip: %s bandwidth comparison needs hardware enforcement" % feat)
+        return 0
+
     if run_reference_test(feat, resource, p2_cnt, benchmark):
         return -1
 
