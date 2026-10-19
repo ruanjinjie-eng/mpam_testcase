@@ -225,7 +225,7 @@ def start_benchmark(cpuno, numa_id, name, resource):
             command = "taskset -c %d bw_mem -P %d -N %d %s rd" % (cpuno, procs, times, size)
         else:
             size = "16M" if fast else "64M"
-            times = 1
+            times = 3
             procs = 8
             command = "numactl -N %d bw_mem -P %d -N %d %s rd" % (numa_id, procs, times, size)
         print("%s" % command)

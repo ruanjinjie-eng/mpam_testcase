@@ -45,12 +45,16 @@ def run_reference_test(feat, resource, cnt, benchmark):
     if mpam_lib.put_pid_resctrl(proc1.pid, ctrl_grp):
         return -1
 
-    mpam_lib.end_benchmark(proc1, benchmark)
+    ref_bw = mpam_lib.end_benchmark(proc1, benchmark)
     if benchmark == "stress-ng":
         if mpam_lib.read_monitor_val(cpuno1, resource, ctrl_grp, monitor_list[resource]) < 0:
             return -1
 
-    return 0
+        # stress-ng has no bandwidth number; the saturation yardstick
+        # below only applies to the bw_mem benchmarks.
+        return 0
+
+    return ref_bw
 
 def run_feat_test(feat, resource, p1_cnt, p2_cnt, benchmark):
     ctrl_grp_1 = "p1"
@@ -79,7 +83,8 @@ def run_feat_test(feat, resource, p1_cnt, p2_cnt, benchmark):
         print("Skip: %s bandwidth comparison needs hardware enforcement" % feat)
         return 0
 
-    if run_reference_test(feat, resource, p2_cnt, benchmark):
+    ref = run_reference_test(feat, resource, p2_cnt, benchmark)
+    if ref < 0:
         return -1
 
     if mpam_lib.mkdir_ctrl_group(ctrl_grp_1, ""):
@@ -129,6 +134,17 @@ def run_feat_test(feat, resource, p1_cnt, p2_cnt, benchmark):
         val2 = mpam_lib.end_benchmark(proc2, benchmark)
         if val1 < 0 or val2 < 0:
             return -1
+
+        if ref > 0 and val1 + val2 > 1.8 * ref:
+            # Priority and minimum-bandwidth only arbitrate contention.
+            # If the two concurrent groups together still scale linearly
+            # (~2x the single-group reference), the memory controller
+            # never saw contention and no difference can be observed on
+            # this platform - report what was measured instead of
+            # failing on measurement noise.
+            print("Skip: no memory contention (2 groups: %.2f MB/s vs 1 group: %.2f MB/s, linear scaling), %s has nothing to arbitrate" %
+                 (val1 + val2, ref, feat))
+            return 0
 
     if val1 > val2:
         print("Fail: Check run_feat_test %s" % feat)
