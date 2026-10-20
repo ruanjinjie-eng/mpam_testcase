@@ -409,13 +409,14 @@ def mount_resctrl_fs(mount_option):
         umount_resctrl()
 
     if mount_option:
-        # OLK's -o cdp splits L3 and L2 together; mainline needs the
-        # extra cdpl2 option. Try the combined options first so only a
-        # single mount cycle happens (sequential CDP remounts are an
-        # expert-only path and can disturb closid/rmid state).
+        # Mainline splits L3 and L2 CDP independently: cdp for L3,
+        # cdpl2 for L2. L2 CDP tests need both, so add cdpl2 whenever
+        # cdp is requested for an L2 CDP test. Try the combined options
+        # first so only a single mount cycle happens (sequential CDP
+        # remounts are an expert-only path and can disturb closid/rmid
+        # state).
         opts = mount_option
-        if "cdp" in mount_option and "l2" in mount_option and \
-           "cdpl2" not in mount_option:
+        if "cdp" in mount_option and "cdpl2" not in mount_option:
             opts = mount_option + ",cdpl2"
 
         ret = os.system("mount -t resctrl resctrl %s -o %s,debug" %
