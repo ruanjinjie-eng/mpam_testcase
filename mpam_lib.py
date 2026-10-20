@@ -41,27 +41,6 @@ def check_resource_mon(resource, monitor, quiet=False):
 
     return 0
 
-def probe_bw_monitor():
-    """Resolve which resource carries the bandwidth monitor.
-
-    OLK exposes info/MB_MON and mon_MB_* domains; mainline serves
-    mbm_total_bytes under info/L3_MON and mon_L3_* domains. Return the
-    resource name whose mon_data dir carries mbm_total_bytes, or None.
-    """
-    if check_resource_mon("MB", "mbm_total_bytes", quiet=True) == 0:
-        return "MB"
-    if check_resource_mon("L3", "mbm_total_bytes", quiet=True) == 0:
-        return "L3"
-    return None
-
-def on_hw():
-    """Real MPAM platform where partitioning/priority actually throttles
-    traffic. On QEMU the MSC model derives counters from configuration
-    and never enforces bandwidth, so bandwidth-comparison verdicts that
-    depend on real throttling are skipped there.
-    """
-    return get_cpu_id() in ["950", "920G"]
-
 def get_resource_dom(resource):
     """First domain id of <resource>: from the root schemata.
 
@@ -214,7 +193,8 @@ def start_benchmark(cpuno, numa_id, name, resource):
     # On emulated platforms the monitor counters are configuration-derived,
     # not traffic-derived, so the benchmark only needs to keep the test
     # group's task alive - shorten the workload to keep the suite fast.
-    fast = not on_hw()
+    # This branch targets QEMU only.
+    fast = True
 
     if name == "bw_mem":
         # 减少工作集与迭代次数便于在FPGA上快速跑完

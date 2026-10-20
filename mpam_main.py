@@ -55,8 +55,8 @@ def mpam_test_main(argv):
     else:
         cdp_enable = False
 
-    if "L2" in argv:
-        mount_opt.append("l2")
+    # L2 is exposed by default on the mainline arm_mpam driver (no -o l2
+    # mount option), matching x86 L2 CAT.
 
     if mpam_lib.mount_resctrl_fs(','.join(mount_opt)):
         return -1

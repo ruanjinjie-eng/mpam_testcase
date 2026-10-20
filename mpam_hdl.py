@@ -32,13 +32,9 @@ def run_hdl_test(resource):
     benchmark = "bw_mem"
     percent = 10
 
-    # The verdict compares real bandwidth before/after the hard limit,
-    # which needs hardware enforcement.
-    if not mpam_lib.on_hw():
-        print("Skip: MBHDL needs hardware bandwidth enforcement")
-        return 0
-
-    if mpam_lib.check_resource_mon(resource, monitor_list[resource]):
+    # The mainline driver serves mbm_total_bytes under L3_MON/mon_L3_*.
+    mon_res = "L3"
+    if mpam_lib.check_resource_mon(mon_res, monitor_list["MB"]):
         return -1
 
     if mpam_lib.mkdir_ctrl_group(ctrl_grp, ""):
