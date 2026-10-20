@@ -32,17 +32,11 @@ def run_mbm_test(resource):
     ctrl_grp = "p1"
     benchmark = "bw_mem"
 
-    # OLK exposes the bandwidth monitor as MB_MON/mon_MB_*; mainline
-    # serves mbm_total_bytes under L3_MON/mon_L3_*.
-    mon_res = resource
-    if resource == "MB":
-        mon_res = mpam_lib.probe_bw_monitor()
-        if not mon_res:
-            print("Fail: no bandwidth monitor (MB_MON / L3_MON mbm_total_bytes)")
-            return -1
-    else:
-        if mpam_lib.check_resource_mon(resource, monitor_list[resource]):
-            return -1
+    # The mainline driver serves mbm_total_bytes under L3_MON/mon_L3_*,
+    # not as a separate MB monitor resource.
+    mon_res = "L3" if resource == "MB" else resource
+    if mpam_lib.check_resource_mon(mon_res, monitor_list[resource]):
+        return -1
 
     if mpam_lib.mkdir_ctrl_group(ctrl_grp, ""):
         return -1
