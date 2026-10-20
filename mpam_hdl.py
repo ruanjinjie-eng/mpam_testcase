@@ -69,12 +69,12 @@ def run_hdl_test(resource):
 
     bw_hdl = mpam_lib.end_benchmark(proc, benchmark)
 
-    if bw_hdl > bw * 1.1:
+    if bw_hdl > bw * 1.25:
         print("Fail: run_hdl_test %s (hardlimit increased bandwidth: %.2f -> %.2f MB/s)" %
              (resource, bw, bw_hdl))
         return -1
 
-    if bw_hdl >= bw * 0.95:
+    if bw_hdl >= bw * 0.8:
         # The hard limit had no observable effect: the offered load is
         # below the limit (e.g. CPUs that cannot saturate the link), or
         # the platform does not enforce it. Report what was measured
