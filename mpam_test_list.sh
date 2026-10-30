@@ -38,6 +38,7 @@ commands=(
     "python3 mpam_main.py L2 mbm cdp"
     "python3 mpam_main.py L2 cmt cdp"
     "python3 mpam_main.py L2 cat cdp"
+    "python3 mpam_main.py L2 hotplug"
 
     "python3 mpam_main.py smmu mbm"
     "python3 mpam_main.py smmu mba"

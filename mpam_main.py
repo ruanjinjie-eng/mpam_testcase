@@ -27,6 +27,7 @@ from mpam_precision import run_precision_test, run_l3_precision_test
 # from mpam_mon_limit import run_mon_limit_test, run_mon_1024_test
 from mpam_task import run_task_test, run_sub_monitor_test
 from mpam_cpu import run_cpu_test
+from mpam_hotplug import run_hotplug_test
 from mpam_smmu import run_smmu_mon_test, run_smmu_part_test
 from mpam_hdl import run_hdl_test
 
@@ -159,6 +160,14 @@ def mpam_test_main(argv):
     if "cpu" in argv:
         if run_cpu_test():
             return -1
+
+    if "hotplug" in argv:
+        if "L2" in argv:
+            if run_hotplug_test("L2"):
+                return -1
+        if "L3" in argv:
+            if run_hotplug_test("L3"):
+                return -1
 
     if "sub_mon" in argv:
         if run_sub_monitor_test():
