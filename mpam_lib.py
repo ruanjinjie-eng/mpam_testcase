@@ -193,8 +193,9 @@ def start_benchmark(cpuno, numa_id, name, resource):
     # On emulated platforms the monitor counters are configuration-derived,
     # not traffic-derived, so the benchmark only needs to keep the test
     # group's task alive - shorten the workload to keep the suite fast.
-    # This branch targets QEMU only.
-    fast = True
+    # This branch targets HIP12 hardware: the bandwidth has to come from
+    # real traffic, so use the full workload.
+    fast = False
 
     if name == "bw_mem":
         if resource == "L2":
