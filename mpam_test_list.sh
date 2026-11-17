@@ -49,6 +49,12 @@ commands=(
     "python3 mpam_main.py task"
     "python3 mpam_main.py cpu"
     "python3 mpam_main.py sub_mon"
+
+    "python3 mpam_coupling.py"
+    "python3 mpam_coupling_limits.py"
+    "python3 mpam_coupling_cdp.py"
+    "python3 mpam_coupling_hotplug.py"
+    "python3 mpam_coupling_topology.py"
 )
 
 array_length=${#commands[@]}

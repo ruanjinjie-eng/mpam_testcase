@@ -48,6 +48,20 @@ def mpam_test_main(argv):
     if check_mount_point():
         return -1
 
+    # resctrl/MPAM coupling coverage modules. They manage their own mounts.
+    if "coupling" in argv:
+        from mpam_coupling import main as coupling_main
+        return coupling_main()
+    if "coupling_cdp" in argv:
+        from mpam_coupling_cdp import main as cdp_main
+        return cdp_main()
+    if "coupling_limits" in argv:
+        from mpam_coupling_limits import main as limits_main
+        return limits_main()
+    if "coupling_hotplug" in argv:
+        from mpam_coupling_hotplug import main as hotplug_main
+        return hotplug_main()
+
     mount_opt = []
 
     if "cdp" in argv:
